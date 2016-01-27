@@ -1,0 +1,87 @@
+{# Copyright (C) 2015 Hewlett Packard Enterprise Development LP
+#  All Rights Reserved.
+#
+#  Licensed under the Apache License, Version 2.0 (the "License"); you may
+#  not use this file except in compliance with the License. You may obtain
+#  a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+#  WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+#  License for the specific language governing permissions and limitations
+#  under the License.
+#}{% extends "layout.html" %}
+{% block body %}
+<h1>OVSDB PubSub Benchmark</h1>
+<p>This test simulates the interaction between a counter publisher and subscribers
+that requests a counter update. Each subscribers writes a request, the publisher
+read it and updates the counters. At last the subscriber wait for the notification
+of updated from the publisher.</p>
+<div class="panel panel-primary">
+    <div class="panel-heading">
+        <h2>Configure Test</h2>
+    </div>
+    <div class="panel-body">
+        <form method="post" action="{{ url_for('ovsdb_counters') }}">
+            <div class="form-group">
+                <label for="ovsdb-counters-number">number of counters requests by subscribers</label>
+                <input type="number" class="form-control" id="ovsdb-counters-number" placeholder="Inserts by Producer" min="1" max="5000000" name="quantity">
+            </div>
+            <div class="form-group">
+                <label for="ovsdb-counters-workers">Count of Subscribers</label>
+                <input type="number" class="form-control" id="ovsdb-counters-workers" placeholder="Number of parallel subscribers" min="1" max="1000" name="workers">
+            </div>
+            <div class="form-group">
+                <label for="ovsdb-counters-poolsize">Rows of counters to update</label>
+                <input type="number" class="form-control" id="ovsdb-counters-poolsize" placeholder="Number of rows to update" min="1" max="1000" name="poolsize">
+            </div>
+            <div class="form-group">
+                <button type="submit" class="btn btn-primary">Launch Test</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% if results %}
+<h1>Results of Last Test</h1>
+<dl>
+    <dt>Test</dt><dd>PubSub test</dd>
+    <dt>Number of Workers</dt><dd>{{ results.workers }}</dd>
+    <dt>Requests per Worker</dt><dd>{{ results.quantity }}</dd>
+    <dt>Pool size</dt><dd>{{ results.poolsize }}</dd>
+</dl>
+<div class="panel panel-info">
+    <div class="panel-heading">
+        <h2>Responses per Second vs Mean Response Time</h2>
+    </div>
+    <div class="panel-body">
+        <img src="/plot/throughtput-latency/ovsdb-counters.png">
+    </div>
+</div>
+<div class="panel panel-info">
+    <div class="panel-heading">
+        <h2>Responses per Second and Response Time vs Time</h2>
+    </div>
+    <div class="panel-body">
+        <img src="/plot/responses/ovsdb-counters.png">
+    </div>
+</div>
+<div class="panel panel-info">
+    <div class="panel-heading">
+        <h2>OVSDB Server - Memory Usage</h2>
+    </div>
+    <div class="panel-body">
+        <img src="/plot/memory/ovsdb-counters.png">
+    </div>
+</div>
+<div class="panel panel-info">
+    <div class="panel-heading">
+        <h2>OVSDB Server - CPU Usage</h2>
+    </div>
+    <div class="panel-body">
+        <img src="/plot/cpu/ovsdb-counters.png">
+    </div>
+</div>
+{% endif%}
+{% endblock %}
