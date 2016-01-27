@@ -144,7 +144,11 @@ run_insert_tests(struct benchmark_config *p_conf)
     struct local_stats_data *stats;
 
     /* Clear the test table */
+<<<<<<< HEAD
     clear_table("Test");
+=======
+    clear_test_tables(p_conf);
+>>>>>>> e2aff9d... new: usr: OVSDB benchmark tests
 
     /* Initializes IDL */
     if (!idl_default_initialization(&idl, p_conf)) {

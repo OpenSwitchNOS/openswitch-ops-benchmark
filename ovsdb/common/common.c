@@ -417,6 +417,7 @@ print_usage(char *binary_name)
 }
 
 /**
+<<<<<<< HEAD
  * Clears the table with given name, using ovsdb-client directly.
  * Returns the value returned by ovsdb-client.
  * Because it don't use the IDL the sequence number can't be used to check
@@ -440,4 +441,58 @@ clear_table(char* name)
     retval = system(command);
     free(command);
     return retval;
+=======
+ * Clear all the test tables. It iterates on each table to delete each row
+ * until the table is empty.
+ *
+ * @param [in/out] benchmark test configuration
+ */
+int
+clear_test_tables(struct benchmark_config *config)
+{
+    struct ovsdb_idl *idl;
+    struct ovsdb_idl_txn *txn;
+    const struct ovsrec_test *ovs_test;
+    const struct ovsrec_testcounters *ovs_testcounters;
+    const struct ovsrec_testcountersrequests *ovs_testcountersrequests;
+    const struct ovsrec_testindex *ovs_testindex;
+    int status;
+
+    /* Initializes IDL */
+    if (!idl_default_initialization(&idl, config)) {
+        perror("Can't initialize IDL. ABORTING");
+        exit(-1);
+    }
+    ovsdb_idl_wait_for_replica_synched(idl);
+    ovsdb_idl_run(idl);
+
+    txn = ovsdb_idl_txn_create(idl);
+
+    /* Delete all tables row by row */
+    OVSREC_TEST_FOR_EACH(ovs_test, idl) {
+        ovsrec_test_delete(ovs_test);
+    }
+    OVSREC_TESTCOUNTERS_FOR_EACH(ovs_testcounters, idl) {
+        ovsrec_testcounters_delete(ovs_testcounters);
+    }
+    OVSREC_TESTCOUNTERSREQUESTS_FOR_EACH(ovs_testcountersrequests, idl) {
+        ovsrec_testcountersrequests_delete(ovs_testcountersrequests);
+    }
+    OVSREC_TESTINDEX_FOR_EACH(ovs_testindex, idl) {
+        ovsrec_testindex_delete(ovs_testindex);
+    }
+
+    /* Commit transaction */
+    status = ovsdb_idl_txn_commit_block(txn);
+    ovsdb_idl_txn_destroy(txn);
+
+    if (status != TXN_SUCCESS && status != TXN_UNCHANGED) {
+        exit_with_error_message("Can't delete existing test tables. Aborting",
+                                config);
+        exit(-1);
+    }
+
+    ovsdb_idl_destroy(idl);
+    return status;
+>>>>>>> e2aff9d... new: usr: OVSDB benchmark tests
 }

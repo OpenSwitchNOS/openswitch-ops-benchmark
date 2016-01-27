@@ -192,7 +192,11 @@ void
 do_pubsub_test(struct benchmark_config *config)
 {
     /* Clears the test tables using ovsdb-client */
+<<<<<<< HEAD
     clear_table("Test");
+=======
+    clear_test_tables(config);
+>>>>>>> e2aff9d... new: usr: OVSDB benchmark tests
 
     if (config->total_requests <= 0) {
         exit_with_error_message("Requests number must be greater than 0\n",
