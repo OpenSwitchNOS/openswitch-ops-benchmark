@@ -129,6 +129,6 @@ void ovsdb_idl_wait_for_replica_synched (struct ovsdb_idl*);
 int compare_responses(const void *a, const void *b);
 bool valid_response(const struct sample_data *response);
 void print_usage(char *binary_name);
-int clear_table(char* name);
+int clear_test_tables(struct benchmark_config *config);
 
 #endif /* OVSDB_BENCHMARK_COMMON_H_ */
