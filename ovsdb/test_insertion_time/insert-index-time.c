@@ -152,7 +152,7 @@ run_insert_index_tests(struct benchmark_config *p_conf)
     struct local_stats_data *stats;
 
     /* Clear the test table */
-    clear_table("TestIndex");
+    clear_test_tables(p_conf);
 
     /* Initializes IDL */
     ovsrec_init();
