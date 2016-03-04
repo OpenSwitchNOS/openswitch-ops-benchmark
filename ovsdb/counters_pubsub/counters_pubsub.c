@@ -163,7 +163,7 @@ update_counters(struct ovsdb_idl *idl,
                                                           microseconds_now());
         status = ovsdb_idl_txn_commit_block(txn);
         ovsdb_idl_txn_destroy(txn);
-    } while (status != TXN_SUCCESS || status != TXN_UNCHANGED);
+    } while (status != TXN_SUCCESS && status != TXN_UNCHANGED);
 
     if (update_counters) {
         free_map_values(names, values, NUMBER_OF_COUNTERS);
@@ -326,7 +326,7 @@ worker_for_counters_pubsub_test(const struct benchmark_config *config, int id,
  * @param [in] Benchmark configuration
  */
 void
-initialize_counters_pubsub_test(const struct benchmark_config *config)
+initialize_counters_pubsub_test(struct benchmark_config *config)
 {
     enum ovsdb_idl_txn_status retval;
     struct ovsdb_idl_txn *txn;
@@ -334,8 +334,7 @@ initialize_counters_pubsub_test(const struct benchmark_config *config)
     const struct ovsrec_testcounters *rec_counter;
 
     /* Clears the test tables using ovsdb-client */
-    clear_table("TestCounters");
-    clear_table("TestCountersRequests");
+    clear_test_tables(config);
 
     /* Initializes IDL */
     if (!idl_default_initialization(&idl, config)) {
