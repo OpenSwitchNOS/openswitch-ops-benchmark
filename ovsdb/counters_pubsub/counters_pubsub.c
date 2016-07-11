@@ -38,6 +38,8 @@
 /* Number of counters to insert in the counters map column. */
 #define NUMBER_OF_COUNTERS 256
 
+/* Prints help information about this test.
+ * 'binary_name' is the name of the executable file. */
 void
 counters_pubsub_help(char *binary_name)
 {
@@ -62,7 +64,7 @@ counters_pubsub_help(char *binary_name)
  * @param [in] size of the arrays
  */
 static void
-init_map_values(int64_t value, char **names, int64_t * values, size_t size)
+init_map_values(int64_t value, char **names, int64_t *values, size_t size)
 {
     for (int i = 0; i < size; i++) {
         names[i] = xasprintf("counter-%d", i);
@@ -143,15 +145,15 @@ update_counters(struct ovsdb_idl *idl,
     struct ovsdb_idl_txn *txn;
     const struct ovsrec_testcounters *rec_counter;
     enum ovsdb_idl_txn_status status;
-    uint64_t timestamp = microseconds_now();
+    uint64_t timestamp = nanoseconds_now();
     char *names[NUMBER_OF_COUNTERS];
     int64_t values[NUMBER_OF_COUNTERS];
 
     do {
         txn = ovsdb_idl_txn_create(idl);
         if (update_counters) {
-            init_map_values((int64_t) timestamp,
-                            names, values, NUMBER_OF_COUNTERS);
+            init_map_values((int64_t) timestamp, names,
+                            values, NUMBER_OF_COUNTERS);
             OVSREC_TESTCOUNTERS_FOR_EACH(rec_counter, idl) {
                 ovsrec_testcounters_set_countersField(rec_counter,
                                                       names,
@@ -160,10 +162,10 @@ update_counters(struct ovsdb_idl *idl,
             }
         }
         ovsrec_testcountersrequests_set_responseTimestamp(rec_request,
-                                                          microseconds_now());
+                                                          nanoseconds_now());
         status = ovsdb_idl_txn_commit_block(txn);
         ovsdb_idl_txn_destroy(txn);
-    } while (status != TXN_SUCCESS && status != TXN_UNCHANGED);
+    } while (status != TXN_SUCCESS || status != TXN_UNCHANGED);
 
     if (update_counters) {
         free_map_values(names, values, NUMBER_OF_COUNTERS);
@@ -231,7 +233,7 @@ worker_for_counters_pubsub_test(const struct benchmark_config *config, int id,
     int i, response_index;
     unsigned int seqno;
     struct ovsdb_idl *idl;
-    pid_t ovsdb_pid = pid_from_file(OVSDB_SERVER_PID_FILE_PATH);
+    pid_t ovsdb_pid = pid_of_ovsdb(config);
     struct process_stats stat_a, stat_b;
     struct process_stats *p_initial_stat, *p_end_stat;
     const struct ovsrec_testcounters *rec_counter;
@@ -251,7 +253,7 @@ worker_for_counters_pubsub_test(const struct benchmark_config *config, int id,
     }
     ovsdb_idl_wait_for_replica_synched(idl);
 
-    epoch_time = microseconds_now() - config->test_start_time;
+    epoch_time = nanoseconds_now() - config->test_start_time;
     get_usage(ovsdb_pid, p_initial_stat);
 
     /* The program is waiting for total_requests counters updates */
@@ -260,7 +262,7 @@ worker_for_counters_pubsub_test(const struct benchmark_config *config, int id,
          ++response_index) {
         write_stats = true;
         /* Ask for a update on the counters table */
-        current_time = microseconds_now() - config->test_start_time;
+        current_time = nanoseconds_now() - config->test_start_time;
         responses[response_index].start_time = current_time;
         make_counters_request(idl, current_time);
 
@@ -279,7 +281,7 @@ worker_for_counters_pubsub_test(const struct benchmark_config *config, int id,
         } while (request_time != current_time);
 
         /* Read the counters */
-        uint64_t accumulated_time;
+        uint64_t accumulated_time = 0;
 
         OVSREC_TESTCOUNTERS_FOR_EACH(rec_counter, idl) {
             for (i = 0; i < rec_counter->n_countersField; i++) {
@@ -287,12 +289,12 @@ worker_for_counters_pubsub_test(const struct benchmark_config *config, int id,
             }
         }
 
-        responses[response_index].end_time = microseconds_now() -
-            config->test_start_time;
+        responses[response_index].end_time = nanoseconds_now() -
+                                             config->test_start_time;
         responses[response_index].worker_id = id;
         responses[response_index].status = TXN_SUCCESS;
-        if (responses[response_index].end_time -
-            epoch_time > config->time_window) {
+        if (responses[response_index].end_time - epoch_time
+            > config->time_window) {
             write_stats = false;
             epoch_time = responses[response_index].end_time;
             get_usage(ovsdb_pid, p_end_stat);
@@ -326,7 +328,7 @@ worker_for_counters_pubsub_test(const struct benchmark_config *config, int id,
  * @param [in] Benchmark configuration
  */
 void
-initialize_counters_pubsub_test(struct benchmark_config *config)
+initialize_counters_pubsub_test(const struct benchmark_config *config)
 {
     enum ovsdb_idl_txn_status retval;
     struct ovsdb_idl_txn *txn;
@@ -334,7 +336,8 @@ initialize_counters_pubsub_test(struct benchmark_config *config)
     const struct ovsrec_testcounters *rec_counter;
 
     /* Clears the test tables using ovsdb-client */
-    clear_test_tables(config);
+    clear_table("TestCounters");
+    clear_table("TestCountersRequests");
 
     /* Initializes IDL */
     if (!idl_default_initialization(&idl, config)) {
@@ -355,7 +358,8 @@ initialize_counters_pubsub_test(struct benchmark_config *config)
         rec_counter = ovsrec_testcounters_insert(txn);
         ovsrec_testcounters_set_countersField(rec_counter,
                                               names,
-                                              values, NUMBER_OF_COUNTERS);
+                                              values,
+                                              NUMBER_OF_COUNTERS);
     }
     retval = ovsdb_idl_txn_commit_block(txn);
     if (retval != TXN_SUCCESS) {

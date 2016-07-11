@@ -34,6 +34,8 @@
 #include "vswitch-idl.h"
 #include "dirs.h"
 
+/* Prints help information about this test.
+ * 'binary_name' is the name of the executable file. */
 void
 insert_help(char *binary_name)
 {
@@ -104,7 +106,7 @@ worker_for_insert_test(const struct benchmark_config *config, int id,
     struct ovsdb_idl *idl;
     struct ovsdb_idl_txn *txn;
     struct ovsrec_test *test_record;
-    pid_t ovsdb_pid = pid_from_file(OVSDB_SERVER_PID_FILE_PATH);
+    pid_t ovsdb_pid = pid_of_ovsdb(config);
     struct process_stats stat_a, stat_b;
     struct process_stats *p_initial_stat, *p_end_stat;
 
@@ -117,11 +119,11 @@ worker_for_insert_test(const struct benchmark_config *config, int id,
         exit(1);
     }
 
-    epoch_time = microseconds_now() - config->test_start_time;
+    epoch_time = nanoseconds_now() - config->test_start_time;
     get_usage(ovsdb_pid, p_initial_stat);
     for (i = 0; i < config->total_requests; i++) {
         responses[i].worker_id = id;
-        responses[i].start_time = microseconds_now() - config->test_start_time;
+        responses[i].start_time = nanoseconds_now() - config->test_start_time;
 
         /* START of the test */
         ovsdb_idl_run(idl);
@@ -138,7 +140,7 @@ worker_for_insert_test(const struct benchmark_config *config, int id,
         ovsdb_idl_txn_destroy(txn);
 
         /* END of the test */
-        responses[i].end_time = microseconds_now() - config->test_start_time;
+        responses[i].end_time = nanoseconds_now() - config->test_start_time;
         /* If the current epoch has elapsed more than 1s, and this worker has
          * the id 0 then save the OVSDB stats */
         if (id == 1

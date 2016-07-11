@@ -22,6 +22,8 @@
 #include "vswitch-idl.h"
 #include "ovsdb-idl.h"
 
+/* Prints help information about this test.
+ * 'binary_name' is the name of the executable file. */
 void
 record_update_help(char *binary_name)
 {
@@ -65,6 +67,7 @@ record_update_help(char *binary_name)
            binary_name);
 }
 
+/* Inserts records into DB, to be used for later update. */
 static void
 insert_records(struct benchmark_config *config)
 {
@@ -113,15 +116,9 @@ insert_records(struct benchmark_config *config)
     }
 }
 
-/**
- * The worker will read rows from the database choosing them at random,
- * update every value for the row and calculate the time required for
- * each row
- *
- * @param [in] config Benchmark configuration
- * @param [in] id Worker ID
- * @param [out] responses sample_data array to save the measurings.
- */
+/* The worker will send requests as fast as possible against the DB.
+ * Receives the request number and  must send to the timing pipe the
+ * elapsed time, the successful state and the value. */
 static void
 worker_for_update_test(const struct benchmark_config *config, int id,
                        struct sample_data *responses)
@@ -130,7 +127,7 @@ worker_for_update_test(const struct benchmark_config *config, int id,
     int i;
     struct ovsdb_idl *idl;
     struct ovsdb_idl_txn *txn;
-    pid_t ovsdb_pid = pid_from_file(OVSDB_SERVER_PID_FILE_PATH);
+    pid_t ovsdb_pid = pid_of_ovsdb(config);
     struct process_stats stat_a, stat_b;
     struct process_stats *p_initial_stat, *p_end_stat;
     const struct uuid *selected_uuid;
@@ -149,11 +146,11 @@ worker_for_update_test(const struct benchmark_config *config, int id,
     ovsdb_idl_wait_for_replica_synched(idl);
 
     /* Begin of the test */
-    epoch_time = microseconds_now() - config->test_start_time;
+    epoch_time = nanoseconds_now() - config->test_start_time;
     get_usage(ovsdb_pid, p_initial_stat);
     for (i = 0; i < config->total_requests; i++) {
         responses[i].worker_id = id;
-        responses[i].start_time = microseconds_now() - config->test_start_time;
+        responses[i].start_time = nanoseconds_now() - config->test_start_time;
 
         /* Select record to be modified */
         selected_uuid = &config->record_pool[rand() % config->pool_size];
@@ -181,7 +178,7 @@ worker_for_update_test(const struct benchmark_config *config, int id,
         ovsdb_idl_txn_destroy(txn);
 
         /* END of the test */
-        responses[i].end_time = microseconds_now() - config->test_start_time;
+        responses[i].end_time = nanoseconds_now() - config->test_start_time;
         /* If the current epoch has elapsed more than 1s, and this worker has
          * the id 1 then save the OVSDB stats */
         if (id == 1
@@ -223,11 +220,6 @@ do_record_update_test(struct benchmark_config *config)
     /* Initialize the metadata for the IDL cache. */
     config->record_pool = record_pool;
     insert_records(config);
-
-    if (config->pool_size <= 0) {
-        exit_with_error_message
-            ("Update rows pool size must greater than 0\n", config);
-    }
 
     /* Do the test */
     do_metatest(config, &worker_for_update_test, "update_test", NULL);

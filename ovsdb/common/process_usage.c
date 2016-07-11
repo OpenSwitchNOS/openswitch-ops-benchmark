@@ -32,7 +32,7 @@
  * @return process id of the process or -1 if an error occured.
  */
 int
-pid_from_file(const char *const path)
+pid_from_file(const char *path)
 {
     FILE *fd;
     int pid;
@@ -101,8 +101,8 @@ get_usage(int pid, struct process_stats *stats)
     }
 
     if ((fd = fopen(path, "r")) == NULL) {
+        fprintf(stderr, "Can't open %s\n", path);
         free(path);
-        perror("Can't open /proc/pid/stats");
         return -1;
     }
 

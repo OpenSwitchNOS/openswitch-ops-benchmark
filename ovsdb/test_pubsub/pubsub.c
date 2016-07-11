@@ -35,6 +35,8 @@
 #include "vswitch-idl.h"
 #include "dirs.h"
 
+/* Prints help information about this test.
+ * 'binary_name' is the name of the executable file. */
 void
 pubsub_help(char *binary_name)
 {
@@ -57,6 +59,9 @@ pubsub_producer(const struct benchmark_config *configuration)
     char *record_id;
     const struct ovsrec_test *rec;
 
+    /* Clears the test tables using ovsdb-client */
+    clear_table("Test");
+
     /* Do initialization */
     idl_default_initialization(&idl, configuration);
     ovsdb_idl_wait_for_replica_synched(idl);
@@ -72,7 +77,7 @@ pubsub_producer(const struct benchmark_config *configuration)
             /* The insertion data */
             asprintf(&record_id, "%d", i);
             ovsrec_test_set_stringField(rec, record_id);
-            ovsrec_test_set_numericField(rec, microseconds_now() -
+            ovsrec_test_set_numericField(rec, nanoseconds_now() -
                                          configuration->test_start_time);
             ovsrec_test_set_enumField(rec, OVSREC_TEST_ENUMFIELD_ENUMVALUE1);
             ovsrec_test_set_boolField(rec, true);
@@ -91,8 +96,8 @@ pubsub_producer(const struct benchmark_config *configuration)
 
 /**
  * The worker will try to read rows from the DB. The numericField is the
- * time (in microseconds) at row modification. With that the program can
- * calculate how many microseconds has passed since the last database
+ * time (in nanoseconds) at row modification. With that the program can
+ * calculate how many nanoseconds has passed since the last database
  * update.
  *
  * @param [in] config Benchmark configuration
@@ -109,7 +114,7 @@ worker_for_pubsub_test(const struct benchmark_config *config, int id,
     unsigned int old_seqno, new_seqno;
     int records_read;
     struct ovsdb_idl *idl;
-    pid_t ovsdb_pid = pid_from_file(OVSDB_SERVER_PID_FILE_PATH);
+    pid_t ovsdb_pid = pid_of_ovsdb(config);
     struct process_stats stat_a, stat_b;
     struct process_stats *p_initial_stat, *p_end_stat;
     const struct ovsrec_test *ovs_test;
@@ -124,10 +129,11 @@ worker_for_pubsub_test(const struct benchmark_config *config, int id,
         perror("Can't initialize IDL. ABORTING");
         exit(-1);
     }
+    old_seqno = 0;
     new_seqno = ovsdb_idl_get_seqno(idl);
     ovsdb_idl_wait_for_replica_synched(idl);
 
-    epoch_time = microseconds_now() - config->test_start_time;
+    epoch_time = nanoseconds_now() - config->test_start_time;
     get_usage(ovsdb_pid, p_initial_stat);
     records_read = 0;
     do {
@@ -136,7 +142,7 @@ worker_for_pubsub_test(const struct benchmark_config *config, int id,
         new_seqno = ovsdb_idl_get_seqno(idl);
         if (old_seqno != new_seqno) {
             old_seqno = new_seqno;
-            current_time = microseconds_now() - config->test_start_time;
+            current_time = nanoseconds_now() - config->test_start_time;
             OVSREC_TEST_FOR_EACH(ovs_test, idl) {
                 i = atoi(ovs_test->stringField);
                 /* If start_time is zero then this record hasn't been read
@@ -191,9 +197,6 @@ worker_for_pubsub_test(const struct benchmark_config *config, int id,
 void
 do_pubsub_test(struct benchmark_config *config)
 {
-    /* Clears the test tables using ovsdb-client */
-    clear_test_tables(config);
-
     if (config->total_requests <= 0) {
         exit_with_error_message("Requests number must be greater than 0\n",
                                 config);

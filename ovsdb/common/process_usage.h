@@ -27,6 +27,7 @@
 /** Flag for reading the stats from the current program */
 #define SELF_STATS -9999
 
+/* Contains process execution information. */
 struct process_stats {
     unsigned long long utime;   /* User-mode CPU time */
     unsigned long long stime;   /* Kernel-mode CPU time */
@@ -42,7 +43,7 @@ struct process_stats {
 };
 
 int pid_of(const char *);
-int pid_from_file(const char const *);
+int pid_from_file(const char *);
 int get_usage(int pid, struct process_stats *);
 void cpu_usage_pct(const struct process_stats *,
                    const struct process_stats *, double *, double *);

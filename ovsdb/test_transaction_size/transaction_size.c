@@ -35,6 +35,8 @@
 #include "ovsdb-idl.h"
 #include "poll-loop.h"
 
+/* Prints help information about this test.
+ * 'binary_name' is the name of the executable file. */
 void
 transaction_size_help(char *binary_name)
 {
@@ -72,12 +74,13 @@ transaction_size_help(char *binary_name)
 static void
 insert_into_test_table(struct ovsdb_idl *idl, int rows,
                        bool single_transaction,
-                       struct sample_data *const sample)
+                       struct sample_data *const sample,
+                       struct benchmark_config *config)
 {
     struct process_stats initial_stat;
     struct process_stats final_stat;
 
-    pid_t ovsdb_pid = pid_from_file(OVSDB_SERVER_PID_FILE_PATH);
+    pid_t ovsdb_pid = pid_of_ovsdb(config);
 
     struct ovsrec_test *rec;
     struct ovsdb_idl_txn *txn;
@@ -87,7 +90,7 @@ insert_into_test_table(struct ovsdb_idl *idl, int rows,
 
     if (single_transaction) {
         /* Start timer and stats measurement */
-        sample->start_time = microseconds_now();
+        sample->start_time = nanoseconds_now();
         get_usage(ovsdb_pid, &initial_stat);
 
         txn = ovsdb_idl_txn_create(idl);
@@ -107,12 +110,12 @@ insert_into_test_table(struct ovsdb_idl *idl, int rows,
         ovsdb_idl_txn_destroy(txn);
 
         /* Stop timer and measure the CPU and memory usage */
-        sample->end_time = microseconds_now();
+        sample->end_time = nanoseconds_now();
         get_usage(ovsdb_pid, &final_stat);
 
     } else {
         /* Start timer */
-        sample->start_time = microseconds_now();
+        sample->start_time = nanoseconds_now();
         get_usage(ovsdb_pid, &initial_stat);
 
         for (int i = 0; i < rows; ++i) {
@@ -132,7 +135,7 @@ insert_into_test_table(struct ovsdb_idl *idl, int rows,
         }
 
         /* Stop timer and measure the CPU and memory usage */
-        sample->end_time = microseconds_now();
+        sample->end_time = nanoseconds_now();
         get_usage(ovsdb_pid, &final_stat);
     }
 
@@ -170,10 +173,7 @@ do_transaction_size_test(struct benchmark_config *config)
     }
 
     insert_into_test_table(idl, config->total_requests,
-                           config->single_transaction, &sample);
-
-    printf("single,requests,vsize,rss,"
-           "ucpu,scpu,duration\n");
+                           config->single_transaction, &sample, config);
 
     printf("%d,%" PRIu32 ",%lu,%ld,%f,%f,%" PRIu64 "\n",
            config->single_transaction ? 1 : 0, config->total_requests,

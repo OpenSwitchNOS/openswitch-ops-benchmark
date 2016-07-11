@@ -48,11 +48,11 @@
 void do_insertion_index_time(struct benchmark_config *configuration) {
     if (configuration->total_requests <= 0) {
         exit_with_error_message("Requests number must be greater than 0\n",
-                configuration);
+                                configuration);
     }
     if (configuration->pool_size <= 0) {
         exit_with_error_message("Record pool size must be greater than 0\n",
-                configuration);
+                                configuration);
     }
     run_insert_index_tests(configuration);
 }
@@ -86,7 +86,7 @@ insert_into_test_index_table(struct ovsdb_idl *p_idl, struct local_stats_data *s
 
     ovsdb_idl_run(p_idl);
 
-    startTime = microseconds_now();
+    startTime = nanoseconds_now();
     txn = ovsdb_idl_txn_create(p_idl);
 
     for (int i = 0; i < stats->rows_to_insert; ++i) {
@@ -97,7 +97,7 @@ insert_into_test_index_table(struct ovsdb_idl *p_idl, struct local_stats_data *s
 
     rc = ovsdb_idl_txn_commit_block(txn);
     ovsdb_idl_txn_destroy(txn);
-    endTime = microseconds_now();
+    endTime = nanoseconds_now();
     stats->write_time = endTime-startTime;
     stats->succeded = rc == TXN_SUCCESS ? true: false;
 
@@ -122,7 +122,7 @@ read_test_index_table(struct ovsdb_idl *p_idl, struct local_stats_data *stats)
     uint64_t start_time, end_time;
 
     records_read = 0;
-    start_time = microseconds_now();
+    start_time = nanoseconds_now();
     OVSREC_TESTINDEX_FOR_EACH(rec, p_idl) {
         stringField  = rec->stringField;
         numericField = rec->numericField;
@@ -130,7 +130,7 @@ read_test_index_table(struct ovsdb_idl *p_idl, struct local_stats_data *stats)
         boolField    = rec->boolField;
         records_read++;
     }
-    end_time = microseconds_now();
+    end_time = nanoseconds_now();
     stats->rows_read = records_read;
     stats->read_time = end_time - start_time;
 
@@ -150,9 +150,6 @@ run_insert_index_tests(struct benchmark_config *p_conf)
 {
     struct ovsdb_idl *idl;
     struct local_stats_data *stats;
-
-    /* Clear the test table */
-    clear_test_tables(p_conf);
 
     /* Initializes IDL */
     ovsrec_init();

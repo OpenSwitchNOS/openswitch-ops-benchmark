@@ -1,4 +1,4 @@
-/* Copyright (C) 2015 Hewlett Packard Enterprise Development LP
+/* Copyright (C) 2015, 2016 Hewlett Packard Enterprise Development LP
  * All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -24,6 +24,8 @@
 #include <unistd.h>
 #include <time.h>
 #include "common/common.h"
+#include "counters_waitmon/counters_waitmon.h"
+#include "counters_pubsub/counters_pubsub.h"
 #include "test_insert/insert.h"
 #include "test_insertion_time/insert-index-time.h"
 #include "test_insertion_time/insert-time.h"
@@ -31,8 +33,9 @@
 #include "test_transaction_size/transaction_size.h"
 #include "test_modify/record_update.h"
 #include "test_pubsub/pubsub.h"
-#include "counters_pubsub/counters_pubsub.h"
 
+/* Prints usage help for each benchmark method, or for the benchmark
+ * tool itself. */
 void
 show_help(enum benchmark_method method, char *binary_name)
 {
@@ -61,6 +64,9 @@ show_help(enum benchmark_method method, char *binary_name)
     case METHOD_COUNTERS:
         counters_pubsub_help(binary_name);
         break;
+    case METHOD_WAITMON:
+        counters_waitmon_help(binary_name);
+        break;
     default:
         print_usage(binary_name);
         exit(1);
@@ -68,6 +74,8 @@ show_help(enum benchmark_method method, char *binary_name)
     }
 }
 
+/* This program is the main OVSDB benchmark tool.
+ * All test can be launch from this program. */
 int
 main(int argc, char **argv)
 {
@@ -81,9 +89,12 @@ main(int argc, char **argv)
     configuration.argc = argc;
     configuration.argv = argv;
 
-    while ((option = getopt(argc, argv, "d:p:o:n:w:m:sch")) != -1) {
+    while ((option = getopt(argc, argv, "d:p:o:n:w:g:m:i:sch")) != -1) {
 	char c = (char)option;
         switch (c) {
+        case 'i':
+            configuration.process_identity = strdup(optarg);
+            break;
         case 'd':
             configuration.delay = atoi(optarg);
             break;
@@ -111,6 +122,9 @@ main(int argc, char **argv)
             break;
         case 's':
             configuration.single_transaction = true;
+            break;
+        case 'g':
+            configuration.producers = atoi(optarg);
             break;
         case 'h':
             display_help = true;
@@ -157,7 +171,9 @@ main(int argc, char **argv)
             configuration.method = METHOD_PUBSUB;
         } else if (strcmp("counters", argv[optind]) == 0) {
             configuration.method = METHOD_COUNTERS;
-        } else {
+        } else if (strcmp("waitmon", argv[optind]) == 0) {
+            configuration.method = METHOD_WAITMON;
+        }else {
             exit_with_error_message("Method given not supported\n",
                                     &configuration);
         }
@@ -194,6 +210,9 @@ main(int argc, char **argv)
             break;
         case METHOD_COUNTERS:
             do_counters_pubsub_test(&configuration);
+            break;
+        case METHOD_WAITMON:
+            do_counters_waitmon_test(&configuration);
             break;
         default:
             print_usage(argv[0]);

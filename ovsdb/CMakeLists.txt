@@ -41,6 +41,7 @@ file(GLOB SOURCES
 	"test_modify/*.c"
 	"test_pubsub/*.c"
 	"counters_pubsub/*.c"
+	"counters_waitmon/*.c"
 	"test_insertion_time/*.c"
 )
 

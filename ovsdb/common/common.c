@@ -1,4 +1,4 @@
-/* Copyright (C) 2015 Hewlett Packard Enterprise Development LP
+/* Copyright (C) 2015, 2016 Hewlett Packard Enterprise Development LP
  * All Rights Reserved.
  *
  * Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -22,6 +22,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <time.h>
 #include <unistd.h>
 
 #include "common.h"
@@ -42,19 +43,20 @@ void
 init_benchmark(struct benchmark_config *config)
 {
     char *remote = xasprintf("unix:%s/db.sock", ovs_rundir());
-    char *pidpath = xasprintf("%s", OVSDB_SERVER_PID_FILE_PATH);
 
     config->ovsdb_socket = remote;      /* Default OVSDB socket */
-    config->ovsdb_pid_path = pidpath;   /* Default OVSDB PID file */
+    config->ovsdb_pid_path = NULL;   /* Default OVSDB PID file */
     config->method = METHOD_NONE;       /* By default do nothing */
     config->workers = -1;       /* Worker is a mandatory argument */
+    config->producers = 0;              /* Number of data producers */
     config->total_requests = -1;        /* Requests is a mandatory argument */
     config->pool_size = -1;     /* Record pool size is mandatory */
     config->single_transaction = false; /* Tiny transactions by default */
-    config->time_window = 1000000;      /* One second */
+    config->time_window = 1000000000;      /* One second, in ns */
     config->enable_cache = true;        /* Turn on cache by default */
     config->delay = 0;          /* 0 delay by default */
     config->record_pool = NULL; /* None by default */
+    config->process_identity = "";
 }
 
 /**
@@ -112,16 +114,14 @@ fill_test_index_row(const struct ovsrec_testindex* p_rec, int p_num)
 }
 
 
-/**
- * Get time in microseconds
- */
+/* Get current time in nanoseconds. */
 uint64_t
-microseconds_now(void)
+nanoseconds_now(void)
 {
-    struct timeval tv;
+    struct timespec ts;
 
-    gettimeofday(&tv, NULL);
-    return tv.tv_sec * 1000000ull + tv.tv_usec;
+    clock_gettime(CLOCK_REALTIME, &ts);
+    return ts.tv_sec * 1000000000ull + ts.tv_nsec;
 }
 
 /**
@@ -195,7 +195,7 @@ print_stats(struct benchmark_config *config,
 {
     struct stats_data stats;
     uint64_t total_requests = config->workers * config->total_requests;
-    int response_epoch;
+    uint64_t response_epoch;
     bool has_pending_stats = false;
 
     /* Sort all the responses by end time */
@@ -319,7 +319,11 @@ idl_default_initialization(struct ovsdb_idl **idl,
     idl_init(idl, config);
     ovsdb_idl_run(*idl);
     /* Checks if the IDL is alive */
-    return ovsdb_idl_is_alive(*idl);
+    bool is_alive = ovsdb_idl_is_alive(*idl);
+    if (is_alive) {
+        ovsdb_idl_wait_for_replica_synched(*idl);
+    }
+    return is_alive;
 }
 
 /**
@@ -352,7 +356,7 @@ compare_responses(const void *a, const void *b)
     const struct sample_data *pa = (const struct sample_data *) a;
     const struct sample_data *pb = (const struct sample_data *) b;
 
-    return pa->end_time - pb->end_time;
+    return (pa->end_time > pb->end_time) - (pa->end_time < pb->end_time);
 }
 
 /**
@@ -365,6 +369,8 @@ compare_responses(const void *a, const void *b)
 bool
 valid_response(const struct sample_data * response)
 {
+    /* All the workers ID are > 1, therefore if worker_id is 0 then the
+     * request hasn't been filled. */
     return response->worker_id != 0;
 }
 
@@ -405,8 +411,10 @@ print_usage(char *binary_name)
            " one big transaction.\n"
            "  \t'pubsub': Measures the time between publishing and receiving data\n"
            "  \t'counters': Measures the time between requesting counters and retrieving them\n"
+           "  \t'waitmon': Like counters, but with wait monitoring \n"
            "-n\tNumber of operations. Apply for all tests.\n"
            "-w\tNumber of workers. Apply for insert.\n"
+           "-g\tNumber of producers. Apply for waitmon.\n."
            "-m\tSize of the pool of records. Apply for update.\n"
            "-s\tSingle transaction. Apply for single-transaction.\n"
            "-c\tDisable the cache. By default the tests configure the IDL to "
@@ -416,57 +424,93 @@ print_usage(char *binary_name)
            "-p\tPath to OVSDB socket. Apply to all.\n", binary_name);
 }
 
-/**
- * Clear all the test tables. It iterates to delete each table row until
- * the table is empty.
- *
- * @param [in/out] benchmark test configuration
+/* Clears the table with given 'name', using ovsdb-client directly.
+ * Because it don't use the IDL the sequence number can't be used
+ * to check if it already was processed.
+ * Therefore is recommended to call it before running the IDL, and call
+ * ovsdb_idl_wait_for_replica_synched after initializing the IDL.
+ * Returns the value returned by ovsdb-client. */
+int
+clear_table(char* name)
+{
+    int retval;
+    char* command = xasprintf("ovsdb-client "
+            "transact "
+            "'[\"OpenSwitch\", "
+            "{\"op\":\"delete\","
+            "\"table\":\"%s\","
+            "\"where\":[]},"
+            "{\"op\":\"commit\",\"durable\":true}]'", name);
+    retval = system(command);
+    free(command);
+    return retval;
+}
+
+/*
+ * Returns the PID of the selected OVSDB Server
+ * in the configuration
  */
 int
-clear_test_tables(struct benchmark_config *config)
+pid_of_ovsdb(const struct benchmark_config *config)
+{
+    if (config->ovsdb_pid_path) {
+        return pid_from_file(config->ovsdb_pid_path);
+    } else {
+        return pid_of("ovsdb-server");
+    }
+}
+
+
+/* Inserts records into DB, to be used for later update. */
+void
+insert_records(struct benchmark_config *config)
 {
     struct ovsdb_idl *idl;
+    const struct ovsrec_test *rec;
+    struct ovsrec_test* new_rec;
     struct ovsdb_idl_txn *txn;
-    const struct ovsrec_test *ovs_test;
-    const struct ovsrec_testcounters *ovs_testcounters;
-    const struct ovsrec_testcountersrequests *ovs_testcountersrequests;
-    const struct ovsrec_testindex *ovs_testindex;
-    int status;
+    enum ovsdb_idl_txn_status status;
 
-    /* Initializes IDL */
+    /* Initialize the metadata for the IDL cache. */
+    config->enable_cache = true;
     if (!idl_default_initialization(&idl, config)) {
-        perror("Can't initialize IDL. ABORTING");
-        exit(-1);
+        int rc = ovsdb_idl_get_last_error(idl);
+
+        fprintf(stderr, "Connection to database failed: %s\n",
+                ovs_retval_to_string(rc));
     }
-    ovsdb_idl_wait_for_replica_synched(idl);
     ovsdb_idl_run(idl);
 
-    txn = ovsdb_idl_txn_create(idl);
+    struct uuid *record_pool = calloc(config->pool_size, sizeof (struct uuid));
 
-    /* Delete all tables row by row */
-    OVSREC_TEST_FOR_EACH(ovs_test, idl) {
-        ovsrec_test_delete(ovs_test);
-    }
-    OVSREC_TESTCOUNTERS_FOR_EACH(ovs_testcounters, idl) {
-        ovsrec_testcounters_delete(ovs_testcounters);
-    }
-    OVSREC_TESTCOUNTERSREQUESTS_FOR_EACH(ovs_testcountersrequests, idl) {
-        ovsrec_testcountersrequests_delete(ovs_testcountersrequests);
-    }
-    OVSREC_TESTINDEX_FOR_EACH(ovs_testindex, idl) {
-        ovsrec_testindex_delete(ovs_testindex);
-    }
+    /* Initialize the metadata for the IDL cache. */
+    config->record_pool = record_pool;
 
-    /* Commit transaction */
-    status = ovsdb_idl_txn_commit_block(txn);
-    ovsdb_idl_txn_destroy(txn);
-
-    if (status != TXN_SUCCESS && status != TXN_UNCHANGED) {
-        exit_with_error_message("Can't delete existing test tables. Aborting",
-                                config);
-        exit(-1);
+    /* Insert the initial records to be updated */
+    for (int i = 0; i < config->pool_size; i++) {
+        txn = ovsdb_idl_txn_create(idl);
+        new_rec = ovsrec_test_insert(txn);
+        fill_test_row(new_rec, i);
+        status = ovsdb_idl_txn_commit_block(txn);
+        if (status != TXN_SUCCESS) {
+            fprintf(stderr, "Error while committing transaction. rc = %d\n",
+                    status);
+        }
+        ovsdb_idl_txn_destroy(txn);
     }
 
-    ovsdb_idl_destroy(idl);
-    return status;
+    /* Gets the UUIDs of the inserted records */
+    int i = 0;
+    OVSREC_TEST_FOR_EACH(rec, idl) {
+        struct uuid *dst = &(config->record_pool[i]);
+        const struct uuid *src = &(rec->header_.uuid);
+
+        memcpy(dst, src, sizeof (struct uuid));
+
+        /* In case the DB has more records than pool_size then exit. */
+        i++;
+        if (i >= config->pool_size) {
+            break;
+        }
+    }
 }

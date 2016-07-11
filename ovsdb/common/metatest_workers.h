@@ -30,4 +30,7 @@ typedef void (*producer_function_t) (const struct benchmark_config *);
 void do_metatest(struct benchmark_config *,
                  worker_function_t, char *, producer_function_t);
 
+void do_metatest2(struct benchmark_config *,
+                  worker_function_t, char *, producer_function_t);
+
 #endif /* OVSDB_METATEST_WORKERS_H_ */

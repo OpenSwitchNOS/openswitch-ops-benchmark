@@ -30,6 +30,8 @@
 #include "vswitch-idl.h"
 #include "dirs.h"
 
+/* Prints help information about this test.
+ * 'binary_name' is the name of the executable file. */
 void
 memory_usage_help(char *binary_name)
 {
@@ -62,12 +64,14 @@ memory_usage_help(char *binary_name)
            binary_name);
 }
 
+/* Prints header for the data. */
 static void
 print_memusage_output_header(void)
 {
     printf("duration,num,status,ucpu,scpu,vsize,rss\n");
 }
 
+/* Prints statistical data */
 void
 print_response_stats(int i, const struct sample_data *response)
 {
@@ -108,7 +112,7 @@ do_memusage_test(struct benchmark_config *config)
     }
 
     /* Initializes stats configuration */
-    ovsdb_pid = pid_from_file(OVSDB_SERVER_PID_FILE_PATH);
+    ovsdb_pid = pid_of_ovsdb(config);
     p_ovsdb_stat_ini = &stat_a;
     p_ovsdb_stat_end = &stat_b;
     get_usage(ovsdb_pid, p_ovsdb_stat_ini);
@@ -116,7 +120,7 @@ do_memusage_test(struct benchmark_config *config)
     /* Do the requests */
     print_memusage_output_header();
     for (int i = 0; i < config->total_requests; i++) {
-        response.start_time = microseconds_now();
+        response.start_time = nanoseconds_now();
 
         /* START of the test */
         ovsdb_idl_run(idl);
@@ -133,7 +137,7 @@ do_memusage_test(struct benchmark_config *config)
         ovsdb_idl_txn_destroy(txn);
 
         /* END of the test */
-        response.end_time = microseconds_now();
+        response.end_time = nanoseconds_now();
 
         /* Update the OVSDB server data */
         get_usage(ovsdb_pid, p_ovsdb_stat_end);

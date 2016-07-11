@@ -56,6 +56,8 @@ void do_insertion_time(struct benchmark_config *configuration) {
     run_insert_tests(configuration);
 }
 
+/* Prints help information about this test.
+ * 'binary_name' is the name of the executable file. */
 void
 insertion_time_help(char *p_binary_name)
 {
@@ -84,7 +86,7 @@ insert_into_test_table(struct ovsdb_idl *p_idl, struct local_stats_data *stats)
 
     ovsdb_idl_run(p_idl);
 
-    startTime = microseconds_now();
+    startTime = nanoseconds_now();
     txn = ovsdb_idl_txn_create(p_idl);
     for (int i = 0; i < stats->rows_to_insert; ++i) {
         sprintf(row_number, "%d%05d", stats->iteration, i);
@@ -94,7 +96,7 @@ insert_into_test_table(struct ovsdb_idl *p_idl, struct local_stats_data *stats)
 
     rc = ovsdb_idl_txn_commit_block(txn);
     ovsdb_idl_txn_destroy(txn);
-    endTime = microseconds_now();
+    endTime = nanoseconds_now();
     stats->write_time = endTime - startTime;
     stats->succeded = rc == TXN_SUCCESS ? true: false;
 
@@ -115,7 +117,7 @@ read_test_table(struct ovsdb_idl *p_idl, struct local_stats_data *stats)
     uint64_t start_time, end_time;
 
     records_read = 0;
-    start_time = microseconds_now();
+    start_time = nanoseconds_now();
     OVSREC_TEST_FOR_EACH(rec, p_idl) {
         stringField  = rec->stringField;
         numericField = rec->numericField;
@@ -123,7 +125,7 @@ read_test_table(struct ovsdb_idl *p_idl, struct local_stats_data *stats)
         boolField    = rec->boolField;
         records_read++;
     }
-    end_time = microseconds_now();
+    end_time = nanoseconds_now();
     stats->rows_read = records_read;
     stats->read_time = end_time - start_time;
 
@@ -142,9 +144,6 @@ run_insert_tests(struct benchmark_config *p_conf)
 {
     struct ovsdb_idl *idl;
     struct local_stats_data *stats;
-
-    /* Clear the test table */
-    clear_test_tables(p_conf);
 
     /* Initializes IDL */
     if (!idl_default_initialization(&idl, p_conf)) {
