@@ -89,7 +89,7 @@ main(int argc, char **argv)
     configuration.argc = argc;
     configuration.argv = argv;
 
-    while ((option = getopt(argc, argv, "d:p:o:n:w:g:m:i:sch")) != -1) {
+    while ((option = getopt(argc, argv, "d:p:o:n:a:w:g:m:i:sch")) != -1) {
 	char c = (char)option;
         switch (c) {
         case 'i':
