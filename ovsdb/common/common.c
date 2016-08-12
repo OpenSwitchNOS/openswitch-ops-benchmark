@@ -57,6 +57,7 @@ init_benchmark(struct benchmark_config *config)
     config->delay = 0;          /* 0 delay by default */
     config->record_pool = NULL; /* None by default */
     config->process_identity = "";
+    config->requests_per_txn = 1;
 }
 
 /**

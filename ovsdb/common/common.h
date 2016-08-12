@@ -99,6 +99,7 @@ struct benchmark_config {
     int64_t test_end_time;      /* End time in microseconds of the test */
     int responses_stats_shm_id; /* ID of the shared memory for saving the
                                  * stats */
+    int requests_per_txn;       /* Number of requests grouped per TXN */
     int workers;                /* Total of workers */
     int producers;              /* Total of producers */
     int total_requests;         /* Total of requests */

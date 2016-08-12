@@ -111,6 +111,9 @@ main(int argc, char **argv)
         case 'n':
             configuration.total_requests = atoi(optarg);
             break;
+        case 'a':
+            configuration.requests_per_txn = atoi(optarg);
+            break;
         case 'w':
             configuration.workers = atoi(optarg);
             break;

@@ -40,7 +40,8 @@ void
 insert_help(char *binary_name)
 {
     printf("Insertion Test\n"
-           "Usage: %s insert -w <workers> -n <quantity> [-c]\n"
+           "Usage: %s insert -w <workers> -n <quantity> "
+           "[-a <inserts per TXN, default=1>] [-c]\n"
            "Inserts <quantity> records, using <workers> process in "
            "parallel.\n"
            "The IDL cache can be disabled, using the flag -c.\n"
@@ -102,7 +103,7 @@ worker_for_insert_test(const struct benchmark_config *config, int id,
     }
 
     uint64_t epoch_time;
-    int i;
+    int i, j;
     struct ovsdb_idl *idl;
     struct ovsdb_idl_txn *txn;
     struct ovsrec_test *test_record;
@@ -129,10 +130,12 @@ worker_for_insert_test(const struct benchmark_config *config, int id,
         ovsdb_idl_run(idl);
         txn = ovsdb_idl_txn_create(idl);
 
-        test_record = ovsrec_test_insert(txn);
+        for (j = 0; j < config->requests_per_txn; j++) {
+            test_record = ovsrec_test_insert(txn);
 
-        /* The insertion data */
-        fill_test_row(test_record, i);
+            /* The insertion data */
+            fill_test_row(test_record, i * config->requests_per_txn + j);
+        }
 
         /* Commit transaction */
         responses[i].status = ovsdb_idl_txn_commit_block(txn);

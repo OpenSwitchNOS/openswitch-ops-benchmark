@@ -28,7 +28,8 @@ void
 record_update_help(char *binary_name)
 {
     printf("Update Records Test\n"
-           "Usage: %s update -n <quantity> -w <workers> -m <records> [-c]\n"
+           "Usage: %s update -n <quantity> -w <workers> -m <records> "
+           "[-a <updates per TXN, default=1>] [-c]\n"
            "Each worker update <quantity> rows, selected at random, from a "
            "set of <records> rows. The probability of two or more workers"
            "updating the same row can be set tweaking the -w and -m values.\n"
@@ -124,7 +125,7 @@ worker_for_update_test(const struct benchmark_config *config, int id,
                        struct sample_data *responses)
 {
     uint64_t epoch_time;
-    int i;
+    int i, j;
     struct ovsdb_idl *idl;
     struct ovsdb_idl_txn *txn;
     pid_t ovsdb_pid = pid_of_ovsdb(config);
@@ -152,25 +153,28 @@ worker_for_update_test(const struct benchmark_config *config, int id,
         responses[i].worker_id = id;
         responses[i].start_time = nanoseconds_now() - config->test_start_time;
 
-        /* Select record to be modified */
-        selected_uuid = &config->record_pool[rand() % config->pool_size];
+        for (j = 0; j < config->requests_per_txn; j++) {
+            /* Select record to be modified */
+            selected_uuid = &config->record_pool[rand() % config->pool_size];
 
-        ovsdb_idl_run(idl);
+            ovsdb_idl_run(idl);
 
-        test_record = ovsrec_test_get_for_uuid(idl, selected_uuid);
-        txn = ovsdb_idl_txn_create(idl);
+            test_record = ovsrec_test_get_for_uuid(idl, selected_uuid);
+            txn = ovsdb_idl_txn_create(idl);
 
-        if (test_record == NULL) {
-            fprintf(stderr, "null record for selected uuid\n");
+            if (test_record == NULL) {
+                fprintf(stderr, "null record for selected uuid\n");
+            }
+
+            /* update test */
+            ovsrec_test_set_boolField(test_record, (bool) (i % 2));
+            ovsrec_test_set_enumField(test_record,
+                                      OVSREC_TEST_ENUMFIELD_ENUMVALUE1);
+            ovsrec_test_set_numericField(test_record,
+                                         id * config->total_requests +
+                                         i * config->requests_per_txn + j);
+            ovsrec_test_set_stringField(test_record, "row");
         }
-
-        /* update test */
-        ovsrec_test_set_boolField(test_record, (bool) (i % 2));
-        ovsrec_test_set_enumField(test_record,
-                                  OVSREC_TEST_ENUMFIELD_ENUMVALUE1);
-        ovsrec_test_set_numericField(test_record,
-                                     id * config->total_requests + i);
-        ovsrec_test_set_stringField(test_record, "row");
 
         /* Commit transaction */
         responses[i].status = ovsdb_idl_txn_commit_block(txn);
