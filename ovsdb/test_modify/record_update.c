@@ -153,14 +153,13 @@ worker_for_update_test(const struct benchmark_config *config, int id,
         responses[i].worker_id = id;
         responses[i].start_time = nanoseconds_now() - config->test_start_time;
 
+        ovsdb_idl_run(idl);
+        txn = ovsdb_idl_txn_create(idl);
+
         for (j = 0; j < config->requests_per_txn; j++) {
             /* Select record to be modified */
             selected_uuid = &config->record_pool[rand() % config->pool_size];
-
-            ovsdb_idl_run(idl);
-
             test_record = ovsrec_test_get_for_uuid(idl, selected_uuid);
-            txn = ovsdb_idl_txn_create(idl);
 
             if (test_record == NULL) {
                 fprintf(stderr, "null record for selected uuid\n");
