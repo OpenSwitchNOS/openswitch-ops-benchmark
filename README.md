@@ -78,51 +78,24 @@ The test includes several trips from IDL to OVSDB.
 
 ## OVSDB Benchmark code download and build
 
-In case the HPEOPS repository has not been downloaded to the workspace
-it is required first to download and configured it:
+Download OpenSwitch as usual. Remove all the cloned repos in `src/`,
+using `make devenv_rm`.
+
+Checkout the `feature/benchmark` in ops-build, and clone the required repos:
 
 ```
-git clone https://git-nos.rose.rdlabs.hpecorp.net/hpe/hpe-build
-cd hpe-build
-make configure hpeops genericx86-64
-make devenv_init
-```
-hpe-benchmark branch is available at hpeops project in the branch
-origin/feature/hpe-benchmark. The steps required to change to the branch
-are:
-```
-cd yocto/hpeops
-git checkout -b feature-hpe-benchmark origin/feature/hpe-benchmark
-cd ../..
-```
-
-Verify hpe-benchmark is now present using
-```
-make devenv_list_all
-```
-
-Then add hpe-benchmark, OPS and openvswitch:
-
-```
-make devenv_add hpe-benchmark
+cd yocto
+git checkout feature/benchmark
+cd -
+make devenv_add ops-benchmark
 make devenv_add ops
 make devenv_add ops-openvswitch
 ```
 
-In order to be able to build IDL with the tables required for the
-benchmark tests, it is required to get the changes to the schema
-usng the repository hpe-benchmark in ops:
-```
-cd src/ops
-git checkout -b feature-hpe-benchmark origin/feature/hpe-benchmark
-cd ../..
-```
+Check that the repostory ops is in the branch `feature/benchmark`. That should
+have happen automatically, but it not then checkout that branch.
 
-and build
-```
-make hpe-benchmark-build
-make
-```
+Then build the image as usual.
 
 ## Export image and install benchmark
 ```
