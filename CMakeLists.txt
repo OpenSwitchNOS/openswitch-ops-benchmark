@@ -18,5 +18,5 @@ cmake_minimum_required (VERSION 2.8.1)
 PROJECT(benchmark)
 
 add_definitions(-DOPS)
-add_definitions(-Wall -Werror -Wstrict-prototypes)
+add_definitions(-Wall -Wstrict-prototypes)
 add_subdirectory(ovsdb)
